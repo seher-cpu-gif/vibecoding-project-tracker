@@ -88,7 +88,7 @@ Suggested sizes (override only if the design demands it):
 
 The tracker probably doesn't need a logo, but it does need a name and a wordmark style.
 
-- **Product name:** `Warm` (match PRD §11 team identity)
+- **Product name:** `Glow` (match PRD §11 team identity)
 - **Wordmark style:** `The name in Space Grotesk, semibold, brand-primary colour,` 
 
 ## 7. Out of scope (this hackathon)
