@@ -75,6 +75,33 @@ const SEED_TASKS = [
   },
 ];
 
+function createId() {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+  return `task-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function newTask() {
+  return {
+    id: createId(),
+    title: '',
+    description: '',
+    type: 'feature',
+    status: 'todo',
+    assignee: TEAM[0],
+    dueDate: null,
+    createdDate: daysFromToday(0),
+  };
+}
+
+function formatDate(isoDate) {
+  if (!isoDate) return '';
+  return new Date(isoDate).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
 /**
  * Saves a value in the browser's localStorage so it survives reloads (NF1, DR15).
  */
@@ -101,16 +128,20 @@ export function useLocalStorage(key, initialValue) {
 
 /* ---------- Components ---------- */
 
-function TaskCard({ task }) {
+function TaskCard({ task, onOpen }) {
   return (
-    <article className="rounded-lg border border-ink/10 bg-surface-card p-3 transition-shadow hover:shadow-md">
-      <h3 className="text-sm font-medium text-ink">{task.title}</h3>
-      <p className="mt-2 text-xs text-ink-muted">{task.assignee}</p>
-    </article>
+    <button
+      type="button"
+      onClick={() => onOpen(task)}
+      className="w-full rounded-lg border border-ink/10 bg-surface-card p-3 text-left transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+    >
+      <span className="block text-sm font-medium text-ink">{task.title}</span>
+      <span className="mt-2 block text-xs text-ink-muted">{task.assignee}</span>
+    </button>
   );
 }
 
-function Column({ stage, tasks }) {
+function Column({ stage, tasks, onOpen }) {
   const headingId = `column-${stage.id}`;
 
   return (
@@ -134,39 +165,245 @@ function Column({ stage, tasks }) {
             Nothing here yet.
           </p>
         ) : (
-          tasks.map((task) => <TaskCard key={task.id} task={task} />)
+                    tasks.map((task) => <TaskCard key={task.id} task={task} onOpen={onOpen} />)
         )}
       </div>
     </section>
   );
 }
 
+function TaskModal({ mode, task, onSave, onDelete, onClose }) {
+  const [form, setForm] = useState(task);
+
+  useEffect(() => {
+    function handleKey(e) {
+      if (e.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [onClose]);
+
+  function update(field, value) {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    if (!form.title.trim()) return;
+    onSave({ ...form, title: form.title.trim() });
+  }
+
+  function handleDelete() {
+    if (window.confirm("Delete this task? This can't be undone.")) {
+      onDelete(form.id);
+    }
+  }
+
+  const labelClass = 'mb-1 block text-xs font-medium text-ink-muted';
+  const inputClass =
+    'w-full rounded-md border border-ink/15 bg-surface-card px-3 py-2 text-sm text-ink focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/30';
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="task-modal-title"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-surface-card p-6 shadow-xl"
+      >
+        <h2
+          id="task-modal-title"
+          className="mb-4 font-heading text-lg font-semibold text-brand-primary"
+        >
+          {mode === 'create' ? 'New task' : 'Edit task'}
+        </h2>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="task-title" className={labelClass}>Title *</label>
+            <input
+              id="task-title"
+              type="text"
+              required
+              autoFocus
+              value={form.title}
+              onChange={(e) => update('title', e.target.value)}
+              placeholder="e.g. Fix login button on mobile"
+              className={inputClass}
+            />
+          </div>
+
+          <div>
+            <label htmlFor="task-description" className={labelClass}>Description</label>
+            <textarea
+              id="task-description"
+              rows={3}
+              value={form.description}
+              onChange={(e) => update('description', e.target.value)}
+              placeholder="What needs doing?"
+              className={inputClass}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="task-type" className={labelClass}>Type</label>
+              <select
+                id="task-type"
+                value={form.type}
+                onChange={(e) => update('type', e.target.value)}
+                className={inputClass}
+              >
+                <option value="feature">Feature</option>
+                <option value="bug">Bug</option>
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="task-status" className={labelClass}>Status</label>
+              <select
+                id="task-status"
+                value={form.status}
+                onChange={(e) => update('status', e.target.value)}
+                className={inputClass}
+              >
+                {STAGES.map((stage) => (
+                  <option key={stage.id} value={stage.id}>{stage.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="task-assignee" className={labelClass}>Assignee</label>
+              <select
+                id="task-assignee"
+                value={form.assignee}
+                onChange={(e) => update('assignee', e.target.value)}
+                className={inputClass}
+              >
+                {TEAM.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="task-due" className={labelClass}>Due date</label>
+              <input
+                id="task-due"
+                type="date"
+                value={form.dueDate ?? ''}
+                onChange={(e) => update('dueDate', e.target.value || null)}
+                className={inputClass}
+              />
+            </div>
+          </div>
+
+          {mode === 'edit' && (
+            <p className="text-xs text-ink-muted">Created {formatDate(form.createdDate)}</p>
+          )}
+
+          <div className="flex items-center justify-between pt-2">
+            {mode === 'edit' ? (
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="rounded-md px-3 py-2.5 text-sm font-medium text-due-overdue hover:bg-due-overdue/10"
+              >
+                Delete
+              </button>
+            ) : (
+              <span />
+            )}
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-md border border-ink/15 px-4 py-2.5 text-sm font-medium text-ink hover:bg-ink/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="rounded-md bg-brand-primary px-4 py-2.5 text-sm font-medium text-surface-card hover:bg-brand-primary/90"
+              >
+                {mode === 'create' ? 'Create task' : 'Save changes'}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- App ---------- */
 
 export default function App() {
-  const [tasks] = useLocalStorage('glow.tasks', SEED_TASKS);
+  const [tasks, setTasks] = useLocalStorage('glow.tasks', SEED_TASKS);
+
+  const [modal, setModal] = useState(null);
+
+  function saveTask(task) {
+    setTasks((prev) =>
+      prev.some((t) => t.id === task.id)
+        ? prev.map((t) => (t.id === task.id ? task : t))
+        : [...prev, task]
+    );
+    setModal(null);
+  }
+
+  function deleteTask(id) {
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+    setModal(null);
+  }
 
   return (
     <div className="mx-auto min-h-screen max-w-7xl p-6">
-      <header className="mb-6">
-        <h1 className="font-heading text-2xl font-semibold text-brand-primary">
-          Glow
-        </h1>
-        <p className="text-sm text-ink-muted">
-          Project tracker.
-        </p>
+      <header className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="font-heading text-2xl font-semibold text-brand-primary">
+            Glow
+          </h1>
+          <p className="text-sm text-ink-muted">Project tracker.</p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setModal({ mode: 'create', task: newTask() })}
+          className="rounded-md bg-brand-primary px-4 py-2.5 text-sm font-medium text-surface-card hover:bg-brand-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
+        >
+          + New task
+        </button>
       </header>
 
-      {/* The Kanban board (FR1): 1 column on phones, 2 on tablets, 4 on desktops (NF7). */}
       <main className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {STAGES.map((stage) => (
           <Column
             key={stage.id}
             stage={stage}
             tasks={tasks.filter((task) => task.status === stage.id)}
+            onOpen={(task) => setModal({ mode: 'edit', task })}
           />
         ))}
       </main>
+
+      {modal && (
+        <TaskModal
+          key={modal.task.id}
+          mode={modal.mode}
+          task={modal.task}
+          onSave={saveTask}
+          onDelete={deleteTask}
+          onClose={() => setModal(null)}
+        />
+      )}
     </div>
   );
 }
