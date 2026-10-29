@@ -87,12 +87,11 @@ export default function App() {
     <div className="min-h-screen p-6">
       <header className="mb-6 flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
-            Vibecoding Project Tracker
+          <h1 className="font-heading text-2xl font-semibold text-brand-primary">
+            Glow
           </h1>
-          <p className="text-sm text-slate-500">
-            {/* Replace this line with your team name from PRD §11. */}
-            Team starter
+          <p className="text-sm text-ink-muted">
+            Project tracker.
           </p>
         </div>
       </header>
