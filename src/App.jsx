@@ -362,20 +362,37 @@ function CopyButton({ onClick, label = 'Copy context' }) {
   );
 }
 
-function TaskCard({ task, onOpen, onCopy, highlighted }) { 
+function TaskCard({ task, onOpen, onCopy, highlighted }) {
   const style = TYPE_STYLES[task.type] ?? TYPE_STYLES.feature;
   const dueState = getDueState(task);
   const dueCard = dueState ? DUE_STYLES[dueState].card : 'border-ink/10 bg-surface-card';
+  const [dragging, setDragging] = useState(false);
+
+  function handleKeyDown(e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onOpen(task);
+    }
+  }
 
   return (
     <div
-      className={`rounded-lg border border-l-4 ${dueCard} transition-shadow hover:shadow-md ${style.stripe} ${
-        highlighted ? 'ring-2 ring-brand-accent ring-offset-2' : ''
-      }`}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData('text/plain', task.id);
+        e.dataTransfer.effectAllowed = 'move';
+        setDragging(true);
+      }}
+      onDragEnd={() => setDragging(false)}
+      className={`cursor-grab rounded-lg border border-l-4 ${dueCard} transition-all hover:shadow-md active:cursor-grabbing ${style.stripe} ${
+        highlighted ? 'ring-2 ring-brand-accent ring-offset-2 ring-offset-surface-page' : ''
+      } ${dragging ? 'opacity-40' : ''}`}
     >
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => onOpen(task)}
+        onKeyDown={handleKeyDown}
         className="block w-full rounded-t-lg p-3 pb-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
       >
         <span className="flex items-start justify-between gap-2">
@@ -390,7 +407,7 @@ function TaskCard({ task, onOpen, onCopy, highlighted }) {
           </span>
           <DueChip task={task} />
         </span>
-      </button>
+      </div>
 
       <div className="flex justify-end border-t border-ink/5 px-3 py-2">
         <CopyButton onClick={() => onCopy(task)} label={`Copy context for ${task.title}`} />
@@ -399,13 +416,32 @@ function TaskCard({ task, onOpen, onCopy, highlighted }) {
   );
 }
 
-function Column({ stage, tasks, onOpen, onCopy, highlightedId }) {
+function Column({ stage, tasks, onOpen, onCopy, onMove, highlightedId }) {
   const headingId = `column-${stage.id}`;
+  const [isOver, setIsOver] = useState(false);
 
   return (
     <section
       aria-labelledby={headingId}
-      className="flex flex-col rounded-xl bg-brand-primary/5 p-3"
+      onDragOver={(e) => {
+        e.preventDefault(); 
+        e.dataTransfer.dropEffect = 'move';
+        if (!isOver) setIsOver(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) setIsOver(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setIsOver(false);
+        const id = e.dataTransfer.getData('text/plain');
+        if (id) onMove(id, stage.id);
+      }}
+      className={`flex flex-col rounded-xl p-3 transition-colors ${
+        isOver
+          ? 'bg-brand-primary/10 outline-dashed outline-2 outline-brand-accent'
+          : 'bg-brand-primary/5'
+      }`}
     >
       <h2
         id={headingId}
@@ -420,10 +456,10 @@ function Column({ stage, tasks, onOpen, onCopy, highlightedId }) {
       <div className="flex flex-1 flex-col gap-3">
         {tasks.length === 0 ? (
           <p className="rounded-lg border-2 border-dashed border-ink/15 p-4 text-center text-sm text-ink-muted">
-            Nothing here yet.
+            {isOver ? 'Drop here' : 'Nothing here yet.'}
           </p>
         ) : (
-                    tasks.map((task) => (
+          tasks.map((task) => (
             <TaskCard
               key={task.id}
               task={task}
@@ -857,6 +893,17 @@ function AppearanceMenu({ theme, onChange }) {
   );
 }
 
+function Logo() {
+  return (
+    <svg viewBox="0 0 32 32" className="h-9 w-9 shrink-0" aria-hidden="true">
+      <rect width="32" height="32" rx="9" className="fill-brand-primary" />
+      <circle cx="16" cy="16" r="10" className="fill-surface-card" opacity="0.15" />
+      <circle cx="16" cy="16" r="6.5" className="fill-surface-card" opacity="0.3" />
+      <circle cx="16" cy="16" r="3.5" className="fill-surface-card" />
+    </svg>
+  );
+}
+
 /* ---------- App ---------- */
 
 export default function App() {
@@ -921,15 +968,31 @@ export default function App() {
     );
   }
 
+  function moveTask(id, status) {
+    const task = tasks.find((t) => t.id === id);
+    if (!task || task.status === status) return;
+    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, status } : t)));
+    setToast(`Moved to ${STAGES.find((s) => s.id === status)?.label}.`);
+  }
+
   return (
     <div className="mx-auto min-h-screen max-w-7xl p-6">
       <header className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="font-heading text-2xl font-semibold text-brand-primary">
-            Glow
-          </h1>
-          <p className="text-sm text-ink-muted">Project tracker.</p>
-        </div>
+        <h1>
+          <button
+            type="button"
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="flex items-center gap-3 rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+          >
+            <Logo />
+            <span>
+              <span className="block font-heading text-2xl font-semibold leading-tight text-brand-primary">
+                Glow
+              </span>
+              <span className="block text-sm font-normal text-ink-muted">Project tracker.</span>
+            </span>
+          </button>
+        </h1>
 
         <div className="flex shrink-0 items-center gap-2">
           <AppearanceMenu theme={theme} onChange={setTheme} />
@@ -954,6 +1017,7 @@ export default function App() {
             onOpen={(task) => setModal({ mode: 'edit', task })}
             highlightedId={highlightedId}
             onCopy={copyTaskContext}
+            onMove={moveTask}
           />
         ))}
       </main>
