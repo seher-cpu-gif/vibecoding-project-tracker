@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Sparkles, Bug, Calendar, Clock, AlarmClock, Check, Copy,Presentation, MonitorPlay, FileText, BookOpen, ExternalLink, Palette, Sun, Moon, Sunset, Contrast } from 'lucide-react';
+import { Sparkles, Bug, Calendar, Clock, AlarmClock, Check, Copy,Presentation, MonitorPlay, FileText, BookOpen, ExternalLink, Palette, Sun, Moon, Sunset, Contrast, Users } from 'lucide-react';
 
 /**
  * Glow — a project tracker for vibe-coding projects.
@@ -128,14 +128,14 @@ function createId() {
   return `task-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function newTask() {
+function newTask(assignee = TEAM[0]) {
   return {
     id: createId(),
     title: '',
     description: '',
     type: 'feature',
     status: 'todo',
-    assignee: TEAM[0],
+    assignee,
     dueDate: null,
     createdDate: daysFromToday(0),
     context: CONTEXT_TEMPLATE, 
@@ -904,12 +904,70 @@ function Logo() {
   );
 }
 
+function PersonFilter({ tasks, value, onChange }) {
+  const options = [
+    { id: 'all', label: 'Everyone' },
+    ...TEAM.map((name) => ({ id: name, label: name.split(' ')[0] })),
+  ];
+
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-2" role="group" aria-label="Filter tasks by person">
+      <span className="mr-1 px-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">Show</span>
+
+      {options.map((opt) => {
+        const selected = value === opt.id;
+        const count =
+          opt.id === 'all' ? tasks.length : tasks.filter((t) => t.assignee === opt.id).length;
+
+        return (
+          <button
+            key={opt.id}
+            type="button"
+            aria-pressed={selected}
+            onClick={() => onChange(opt.id)}
+            className={`inline-flex items-center gap-2 rounded-full border py-1 pl-1 pr-3 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary ${
+              selected
+                ? 'border-brand-primary bg-brand-primary/10 text-brand-primary'
+                : 'border-ink/15 bg-surface-card text-ink hover:bg-ink/5'
+            }`}
+          >
+            {opt.id === 'all' ? (
+              <span className="inline-flex h-7 w-7 items-center justify-center">
+                <Users size={16} aria-hidden="true" />
+              </span>
+            ) : (
+              <Avatar name={opt.id} />
+            )}
+            {opt.label}
+            <span className="font-mono text-xs text-ink-muted">{count}</span>
+          </button>
+        );
+      })}
+
+      {value !== 'all' && (
+        <p className="w-full px-1 text-xs text-ink-muted">
+          Showing only {value}'s tasks ·{' '}
+          <button
+            type="button"
+            onClick={() => onChange('all')}
+            className="font-medium text-brand-accent underline hover:text-brand-primary"
+          >
+            Show everyone
+          </button>
+        </p>
+      )}
+    </div>
+  );
+}
+
 /* ---------- App ---------- */
 
 export default function App() {
   const [tasks, setTasks] = useLocalStorage('glow.tasks', SEED_TASKS);
 
   const [modal, setModal] = useState(null);
+  const [filter, setFilter] = useState('all');
+  const visibleTasks = filter === 'all' ? tasks : tasks.filter((t) => t.assignee === filter);
 
   const [deliverables, setDeliverables] = useLocalStorage('glow.deliverables', EMPTY_DELIVERABLES);
 
@@ -981,7 +1039,10 @@ export default function App() {
         <h1>
           <button
             type="button"
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                        onClick={() => {
+              setFilter('all');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
             className="flex items-center gap-3 rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
           >
             <Logo />
@@ -998,7 +1059,9 @@ export default function App() {
           <AppearanceMenu theme={theme} onChange={setTheme} />
           <button
             type="button"
-            onClick={() => setModal({ mode: 'create', task: newTask() })}
+            onClick={() =>
+              setModal({ mode: 'create', task: newTask(filter !== 'all' ? filter : undefined) })
+            }
             className="rounded-md bg-brand-primary px-4 py-2.5 text-sm font-medium text-surface-card hover:bg-brand-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
           >
             + New task
@@ -1007,13 +1070,14 @@ export default function App() {
       </header>
 
       <DeliverablesBar links={deliverables} onChange={updateDeliverable} />
+      <PersonFilter tasks={tasks} value={filter} onChange={setFilter} />
 
       <main className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {STAGES.map((stage) => (
           <Column
             key={stage.id}
             stage={stage}
-            tasks={tasks.filter((task) => task.status === stage.id)}
+            tasks={visibleTasks.filter((task) => task.status === stage.id)}
             onOpen={(task) => setModal({ mode: 'edit', task })}
             highlightedId={highlightedId}
             onCopy={copyTaskContext}
