@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Sparkles, Bug, Calendar, Clock, AlarmClock, Check, Copy } from 'lucide-react';
+import { Sparkles, Bug, Calendar, Clock, AlarmClock, Check, Copy,Presentation, MonitorPlay, FileText, BookOpen, ExternalLink } from 'lucide-react';
 
 /**
  * Glow — a project tracker for vibe-coding projects.
@@ -38,6 +38,24 @@ Prompts used:
 
 ## Pick up
 Next steps.`;
+
+const DELIVERABLES = [
+  { id: 'presentation',  label: 'Presentation',  icon: Presentation, placeholder: 'Link to slides' },
+  { id: 'demo',          label: 'Demo',          icon: MonitorPlay,  placeholder: 'Link to live demo or video' },
+  { id: 'report',        label: 'Report',        icon: FileText,     placeholder: 'Link to report' },
+  { id: 'documentation', label: 'Documentation', icon: BookOpen,     placeholder: 'Link to docs or README' },
+];
+
+const EMPTY_DELIVERABLES = { presentation: '', demo: '', report: '', documentation: '' };
+
+function isValidUrl(value) {
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
 
 function daysFromToday(n) {
   const d = new Date();
@@ -678,12 +696,90 @@ function TaskModal({ mode, task, onSave, onDelete, onClose, onHandOff, onCopy })
   );
 }
 
+function DeliverablesBar({ links, onChange }) {
+  const addedCount = DELIVERABLES.filter((d) => isValidUrl(links[d.id] ?? '')).length;
+
+  return (
+    <section aria-labelledby="deliverables-heading" className="mb-6">
+      <div className="mb-3 flex items-baseline justify-between px-1">
+        <h2
+          id="deliverables-heading"
+          className="font-heading text-base font-semibold uppercase tracking-wide text-ink-muted"
+        >
+          Deliverables
+        </h2>
+        <span className="font-mono text-xs text-ink-muted">
+          {addedCount} of {DELIVERABLES.length} added
+        </span>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {DELIVERABLES.map((d) => {
+          const value = links[d.id] ?? '';
+          const filled = isValidUrl(value);
+          const Icon = d.icon;
+          const inputId = `deliverable-${d.id}`;
+
+          return (
+            <div key={d.id} className="rounded-lg border border-ink/10 bg-surface-card p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <label htmlFor={inputId} className="flex items-center gap-2 text-sm font-medium text-ink">
+                  <Icon size={16} aria-hidden="true" className="text-brand-accent" />
+                  {d.label}
+                </label>
+
+                <span className="flex items-center gap-1.5 text-[11px] text-ink-muted">
+                  <span
+                    aria-hidden="true"
+                    className={`h-2.5 w-2.5 rounded-full border-2 border-brand-primary ${
+                      filled ? 'bg-brand-primary' : 'bg-transparent'
+                    }`}
+                  />
+                  {filled ? 'Link added' : value.trim() ? 'Check link' : 'No link yet'}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  id={inputId}
+                  type="url"
+                  value={value}
+                  onChange={(e) => onChange(d.id, e.target.value)}
+                  placeholder={d.placeholder}
+                  className="min-w-0 flex-1 rounded-md border border-ink/15 bg-surface-card px-2.5 py-1.5 text-xs text-ink focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/30"
+                />
+                {filled && (
+                  <a
+                    href={value.trim()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Open ${d.label} link in a new tab`}
+                    className="rounded-md p-1.5 text-ink-muted hover:bg-ink/5 hover:text-brand-primary"
+                  >
+                    <ExternalLink size={14} aria-hidden="true" />
+                  </a>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 /* ---------- App ---------- */
 
 export default function App() {
   const [tasks, setTasks] = useLocalStorage('glow.tasks', SEED_TASKS);
 
   const [modal, setModal] = useState(null);
+
+  const [deliverables, setDeliverables] = useLocalStorage('glow.deliverables', EMPTY_DELIVERABLES);
+
+  function updateDeliverable(id, value) {
+    setDeliverables((prev) => ({ ...prev, [id]: value }));
+  }
 
   function saveTask(task) {
     setTasks((prev) =>
@@ -749,6 +845,8 @@ export default function App() {
           + New task
         </button>
       </header>
+
+      <DeliverablesBar links={deliverables} onChange={updateDeliverable} />
 
       <main className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {STAGES.map((stage) => (
