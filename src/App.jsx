@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
-
+import { Sparkles, Bug } from 'lucide-react';
 
 /**
+ * Glow — a project tracker for vibe-coding projects.
+ *
+ * The shape of a task:
  * @typedef {Object} Task
  * @property {string} id            Unique ID (DR1)
  * @property {string} title         Required (DR2)
@@ -13,14 +16,12 @@ import { useState, useEffect } from 'react';
  * @property {string} createdDate   'YYYY-MM-DD' (DR9)
  */
 
-
 export const STAGES = [
   { id: 'todo',        label: 'To Do' },
   { id: 'in-progress', label: 'In Progress' },
   { id: 'review',      label: 'Review' },
   { id: 'done',        label: 'Done' },
 ];
-
 
 export const TEAM = ['Inaya Farah', 'John Smith', 'Jimmy Cooks', 'Frank Ocean'];
 
@@ -102,9 +103,25 @@ function formatDate(isoDate) {
   });
 }
 
-/**
- * Saves a value in the browser's localStorage so it survives reloads (NF1, DR15).
- */
+const TYPE_STYLES = {
+  feature: {
+    label: 'Feature',
+    icon: Sparkles,
+    stripe: 'border-l-type-feature',
+    badge: 'bg-type-feature/10 text-type-feature',
+    selected: 'border-type-feature bg-type-feature/10 text-type-feature',
+    bar: 'bg-type-feature',
+  },
+  bug: {
+    label: 'Bug',
+    icon: Bug,
+    stripe: 'border-l-type-bug',
+    badge: 'bg-type-bug/10 text-type-bug',
+    selected: 'border-type-bug bg-type-bug/10 text-type-bug',
+    bar: 'bg-type-bug',
+  },
+};
+
 export function useLocalStorage(key, initialValue) {
   const [value, setValue] = useState(() => {
     try {
@@ -128,14 +145,32 @@ export function useLocalStorage(key, initialValue) {
 
 /* ---------- Components ---------- */
 
+function TypeBadge({ type }) {
+  const style = TYPE_STYLES[type] ?? TYPE_STYLES.feature;
+  const Icon = style.icon;
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[11px] font-medium ${style.badge}`}
+    >
+      <Icon size={12} aria-hidden="true" />
+      {style.label}
+    </span>
+  );
+}
+
 function TaskCard({ task, onOpen }) {
+  const style = TYPE_STYLES[task.type] ?? TYPE_STYLES.feature;
+
   return (
     <button
       type="button"
       onClick={() => onOpen(task)}
-      className="w-full rounded-lg border border-ink/10 bg-surface-card p-3 text-left transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+      className={`w-full rounded-lg border border-l-4 border-ink/10 bg-surface-card p-3 text-left transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary ${style.stripe}`}
     >
-      <span className="block text-sm font-medium text-ink">{task.title}</span>
+      <span className="flex items-start justify-between gap-2">
+        <span className="text-sm font-medium text-ink">{task.title}</span>
+        <TypeBadge type={task.type} />
+      </span>
       <span className="mt-2 block text-xs text-ink-muted">{task.assignee}</span>
     </button>
   );
@@ -165,7 +200,7 @@ function Column({ stage, tasks, onOpen }) {
             Nothing here yet.
           </p>
         ) : (
-                    tasks.map((task) => <TaskCard key={task.id} task={task} onOpen={onOpen} />)
+          tasks.map((task) => <TaskCard key={task.id} task={task} onOpen={onOpen} />)
         )}
       </div>
     </section>
@@ -189,7 +224,7 @@ function TaskModal({ mode, task, onSave, onDelete, onClose }) {
 
   function handleSubmit(e) {
     e.preventDefault();
-    if (!form.title.trim()) return;
+    if (!form.title.trim()) return; 
     onSave({ ...form, title: form.title.trim() });
   }
 
@@ -216,12 +251,17 @@ function TaskModal({ mode, task, onSave, onDelete, onClose }) {
         aria-labelledby="task-modal-title"
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-surface-card p-6 shadow-xl"
       >
-        <h2
-          id="task-modal-title"
-          className="mb-4 font-heading text-lg font-semibold text-brand-primary"
-        >
-          {mode === 'create' ? 'New task' : 'Edit task'}
-        </h2>
+        <div className={`-mx-6 -mt-6 mb-5 h-1.5 rounded-t-xl ${TYPE_STYLES[form.type].bar}`} />
+
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2
+            id="task-modal-title"
+            className="font-heading text-lg font-semibold text-brand-primary"
+          >
+            {mode === 'create' ? 'New task' : 'Edit task'}
+          </h2>
+          <TypeBadge type={form.type} />
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -251,18 +291,29 @@ function TaskModal({ mode, task, onSave, onDelete, onClose }) {
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label htmlFor="task-type" className={labelClass}>Type</label>
-              <select
-                id="task-type"
-                value={form.type}
-                onChange={(e) => update('type', e.target.value)}
-                className={inputClass}
-              >
-                <option value="feature">Feature</option>
-                <option value="bug">Bug</option>
-              </select>
-            </div>
+            <fieldset>
+              <legend className={labelClass}>Type</legend>
+              <div className="grid grid-cols-2 gap-2">
+                {Object.entries(TYPE_STYLES).map(([value, style]) => {
+                  const Icon = style.icon;
+                  const selected = form.type === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => update('type', value)}
+                      className={`flex items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                        selected ? style.selected : 'border-ink/15 text-ink-muted hover:bg-ink/5'
+                      }`}
+                    >
+                      <Icon size={16} aria-hidden="true" />
+                      {style.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
 
             <div>
               <label htmlFor="task-status" className={labelClass}>Status</label>
