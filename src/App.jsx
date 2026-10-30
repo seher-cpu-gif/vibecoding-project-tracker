@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Sparkles, Bug } from 'lucide-react';
+import { Sparkles, Bug, Calendar, Clock, AlarmClock, Check } from 'lucide-react';
 
 /**
  * Glow — a project tracker for vibe-coding projects.
@@ -122,6 +122,54 @@ const TYPE_STYLES = {
   },
 };
 
+const DUE_STYLES = {
+  safe: {
+    icon: Calendar,
+    card: 'border-ink/10 bg-surface-card',
+    chip: 'border-due-safe/40 bg-surface-card text-due-safe',
+  },
+  warning: {
+    icon: Clock,
+    card: 'border-due-warning/40 bg-due-warning/10',
+    chip: 'border-due-warning/40 bg-surface-card text-due-warning',
+  },
+  overdue: {
+    icon: AlarmClock,
+    card: 'border-due-overdue/50 bg-due-overdue/10',
+    chip: 'border-due-overdue/50 bg-surface-card text-due-overdue',
+  },
+  neutral: {
+    icon: Check,
+    card: 'border-ink/10 bg-surface-card/60',
+    chip: 'border-due-neutral/40 bg-surface-card text-due-neutral',
+  },
+};
+
+
+function getDueState(task, now = Date.now()) {
+  if (task.status === 'done') return 'neutral';
+  if (!task.dueDate) return null;
+  const [y, m, d] = task.dueDate.split('-').map(Number);
+  const deadline = new Date(y, m - 1, d, 23, 59, 59).getTime();
+  const hoursLeft = (deadline - now) / (1000 * 60 * 60);
+  if (hoursLeft < 0) return 'overdue';
+  if (hoursLeft < 24) return 'warning';
+  return 'safe';
+}
+
+function getDueLabel(task, state, now = Date.now()) {
+  if (state === 'neutral') return 'Done';
+  const [y, m, d] = task.dueDate.split('-').map(Number);
+  const due = new Date(y, m - 1, d);
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  const days = Math.round((due - today) / (1000 * 60 * 60 * 24));
+
+  if (state === 'overdue') return days === -1 ? 'Overdue by 1 day' : `Overdue by ${-days} days`;
+  if (state === 'warning') return 'Due today';
+  return days === 1 ? 'Due tomorrow' : `Due in ${days} days`;
+}
+
 export function useLocalStorage(key, initialValue) {
   const [value, setValue] = useState(() => {
     try {
@@ -180,22 +228,42 @@ function Avatar({ name }) {
   );
 }
 
+function DueChip({ task }) {
+  const state = getDueState(task);
+  if (!state) return null;
+  const style = DUE_STYLES[state];
+  const Icon = style.icon;
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium ${style.chip}`}
+    >
+      <Icon size={12} aria-hidden="true" />
+      {getDueLabel(task, state)}
+    </span>
+  );
+}
+
 function TaskCard({ task, onOpen, highlighted }) {
   const style = TYPE_STYLES[task.type] ?? TYPE_STYLES.feature;
+  const dueState = getDueState(task);
+  const dueCard = dueState ? DUE_STYLES[dueState].card : 'border-ink/10 bg-surface-card';
 
   return (
     <button
       type="button"
       onClick={() => onOpen(task)}
-      className={`w-full rounded-lg border border-l-4 border-ink/10 bg-surface-card p-3 text-left transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary ${style.stripe} ${highlighted ? 'ring-2 ring-brand-accent ring-offset-2' : ''}`}
+      className={`w-full rounded-lg border border-l-4 ${dueCard} p-3 text-left transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary ${style.stripe} ${highlighted ? 'ring-2 ring-brand-accent ring-offset-2' : ''}`}
     >
       <span className="flex items-start justify-between gap-2">
         <span className="text-sm font-medium text-ink">{task.title}</span>
         <TypeBadge type={task.type} />
       </span>
-            <span className="mt-3 flex items-center gap-2">
-        <Avatar name={task.assignee} />
-        <span className="text-xs text-ink-muted">{task.assignee}</span>
+           <span className="mt-3 flex items-center justify-between gap-2">
+        <span className="flex min-w-0 items-center gap-2">
+          <Avatar name={task.assignee} />
+          <span className="truncate text-xs text-ink-muted">{task.assignee}</span>
+        </span>
+        <DueChip task={task} />
       </span>
     </button>
   );
@@ -409,6 +477,9 @@ function TaskModal({ mode, task, onSave, onDelete, onClose, onHandOff }) {
                 onChange={(e) => update('dueDate', e.target.value || null)}
                 className={inputClass}
               />
+              <div className="mt-2">
+                <DueChip task={form} />
+              </div>
             </div>
           </div>
 
@@ -488,6 +559,12 @@ export default function App() {
     setHighlightedId(task.id);
     setToast(`Handed off to ${task.assignee}. It's theirs now.`);
   }
+
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
 
   return (
     <div className="mx-auto min-h-screen max-w-7xl p-6">
