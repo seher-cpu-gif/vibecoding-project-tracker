@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Sparkles, Bug, Calendar, Clock, AlarmClock, Check } from 'lucide-react';
+import { Sparkles, Bug, Calendar, Clock, AlarmClock, Check, Copy } from 'lucide-react';
 
 /**
  * Glow — a project tracker for vibe-coding projects.
@@ -128,6 +128,51 @@ function timeAgo(iso, now = Date.now()) {
   if (hours < 24) return `${hours} h ago`;
   const days = Math.floor(hours / 24);
   return days === 1 ? '1 day ago' : `${days} days ago`;
+}
+
+function buildContextBlock(task) {
+  const details = [
+    `Type: ${TYPE_STYLES[task.type]?.label ?? task.type}`,
+    `Status: ${STAGES.find((s) => s.id === task.status)?.label ?? task.status}`,
+    `Owner: ${task.assignee}`,
+    task.dueDate ? `Due: ${formatDate(task.dueDate)}` : null,
+    task.contextTool ? `AI tool: ${task.contextTool}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  return [
+    "I'm continuing work on a task from my project. Here's the context so you can pick up where I left off.",
+    '',
+    `# Task: ${task.title}`,
+    details,
+    '',
+    '## Description',
+    task.description?.trim() || '_No description yet._',
+    '',
+    task.context?.trim() || '## Context\n_No context yet._',
+  ].join('\n');
+}
+
+async function copyToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      const temp = document.createElement('textarea');
+      temp.value = text;
+      temp.style.position = 'fixed';
+      temp.style.opacity = '0';
+      document.body.appendChild(temp);
+      temp.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(temp);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
 }
 
 const TYPE_STYLES = {
@@ -270,33 +315,58 @@ function DueChip({ task }) {
   );
 }
 
-function TaskCard({ task, onOpen, highlighted }) {
+function CopyButton({ onClick, label = 'Copy context' }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      className="inline-flex items-center gap-1.5 rounded-md border border-ink/15 bg-surface-card px-2.5 py-1.5 text-xs font-medium text-ink hover:border-brand-primary hover:text-brand-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+    >
+      <Copy size={14} aria-hidden="true" />
+      Copy Context
+    </button>
+  );
+}
+
+function TaskCard({ task, onOpen, onCopy, highlighted }) { 
   const style = TYPE_STYLES[task.type] ?? TYPE_STYLES.feature;
   const dueState = getDueState(task);
   const dueCard = dueState ? DUE_STYLES[dueState].card : 'border-ink/10 bg-surface-card';
 
   return (
-    <button
-      type="button"
-      onClick={() => onOpen(task)}
-      className={`w-full rounded-lg border border-l-4 ${dueCard} p-3 text-left transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary ${style.stripe} ${highlighted ? 'ring-2 ring-brand-accent ring-offset-2' : ''}`}
+    <div
+      className={`rounded-lg border border-l-4 ${dueCard} transition-shadow hover:shadow-md ${style.stripe} ${
+        highlighted ? 'ring-2 ring-brand-accent ring-offset-2' : ''
+      }`}
     >
-      <span className="flex items-start justify-between gap-2">
-        <span className="text-sm font-medium text-ink">{task.title}</span>
-        <TypeBadge type={task.type} />
-      </span>
-           <span className="mt-3 flex items-center justify-between gap-2">
-        <span className="flex min-w-0 items-center gap-2">
-          <Avatar name={task.assignee} />
-          <span className="truncate text-xs text-ink-muted">{task.assignee}</span>
+      <button
+        type="button"
+        onClick={() => onOpen(task)}
+        className="block w-full rounded-t-lg p-3 pb-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+      >
+        <span className="flex items-start justify-between gap-2">
+          <span className="text-sm font-medium text-ink">{task.title}</span>
+          <TypeBadge type={task.type} />
         </span>
-        <DueChip task={task} />
-      </span>
-    </button>
+
+        <span className="mt-3 flex items-center justify-between gap-2">
+          <span className="flex min-w-0 items-center gap-2">
+            <Avatar name={task.assignee} />
+            <span className="truncate text-xs text-ink-muted">{task.assignee}</span>
+          </span>
+          <DueChip task={task} />
+        </span>
+      </button>
+
+      <div className="flex justify-end border-t border-ink/5 px-3 py-2">
+        <CopyButton onClick={() => onCopy(task)} label={`Copy context for ${task.title}`} />
+      </div>
+    </div>
   );
 }
 
-function Column({ stage, tasks, onOpen, highlightedId }) {
+function Column({ stage, tasks, onOpen, onCopy, highlightedId }) {
   const headingId = `column-${stage.id}`;
 
   return (
@@ -325,6 +395,7 @@ function Column({ stage, tasks, onOpen, highlightedId }) {
               key={task.id}
               task={task}
               onOpen={onOpen}
+              onCopy={onCopy}
               highlighted={task.id === highlightedId}
             />
           ))
@@ -334,7 +405,7 @@ function Column({ stage, tasks, onOpen, highlightedId }) {
   );
 }
 
-function TaskModal({ mode, task, onSave, onDelete, onClose, onHandOff }) {
+function TaskModal({ mode, task, onSave, onDelete, onClose, onHandOff, onCopy }) {
   const [form, setForm] = useState(task);
 
   useEffect(() => {
@@ -519,12 +590,16 @@ function TaskModal({ mode, task, onSave, onDelete, onClose, onHandOff }) {
           </div>
 
           <div className="rounded-lg border border-ink/10 bg-surface-page/60 p-4">
-            <label
-              htmlFor="task-context"
-              className="block font-heading text-sm font-semibold uppercase tracking-wide text-brand-primary"
-            >
-              Context
-            </label>
+          <div className="flex items-center justify-between gap-2">
+              <label
+                htmlFor="task-context"
+                className="block font-heading text-sm font-semibold uppercase tracking-wide text-brand-primary"
+              >
+                Context
+              </label>
+              {/* Copies what's in the form right now, including unsaved edits. */}
+              <CopyButton onClick={() => onCopy(form)} />
+            </div>
             <p className="mb-2 text-xs text-ink-muted">
               Prompts, results and notes, so you (or your AI) can pick up where you left off. Markdown supported.
             </p>
@@ -647,6 +722,15 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
+  async function copyTaskContext(task) {
+    const ok = await copyToClipboard(buildContextBlock(task));
+    setToast(
+      ok
+        ? 'Context copied. Paste it into your AI and pick up where you left off.'
+        : "Couldn't copy. Please try again."
+    );
+  }
+
   return (
     <div className="mx-auto min-h-screen max-w-7xl p-6">
       <header className="mb-6 flex items-start justify-between gap-4">
@@ -674,6 +758,7 @@ export default function App() {
             tasks={tasks.filter((task) => task.status === stage.id)}
             onOpen={(task) => setModal({ mode: 'edit', task })}
             highlightedId={highlightedId}
+            onCopy={copyTaskContext}
           />
         ))}
       </main>
