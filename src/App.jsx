@@ -25,6 +25,20 @@ export const STAGES = [
 
 export const TEAM = ['Inaya Farah', 'John Smith', 'Jimmy Cooks', 'Frank Ocean'];
 
+const AI_TOOLS = ['Claude', 'ChatGPT', 'Cursor', 'Gemini', 'Copiolot', 'Other'];
+
+const CONTEXT_TEMPLATE = `## Background
+What is this task?
+
+## Constraints
+Things to avoid.
+
+## Tried so far
+Prompts used:
+
+## Pick up
+Next steps.`;
+
 function daysFromToday(n) {
   const d = new Date();
   d.setDate(d.getDate() + n);
@@ -91,6 +105,9 @@ function newTask() {
     assignee: TEAM[0],
     dueDate: null,
     createdDate: daysFromToday(0),
+    context: CONTEXT_TEMPLATE, 
+    contextTool: '',           
+    contextUpdatedAt: null,    
   };
 }
 
@@ -101,6 +118,16 @@ function formatDate(isoDate) {
     month: 'short',
     year: 'numeric',
   });
+}
+
+function timeAgo(iso, now = Date.now()) {
+  const mins = Math.floor((now - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} h ago`;
+  const days = Math.floor(hours / 24);
+  return days === 1 ? '1 day ago' : `${days} days ago`;
 }
 
 const TYPE_STYLES = {
@@ -322,6 +349,14 @@ function TaskModal({ mode, task, onSave, onDelete, onClose, onHandOff }) {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
+  function updateContext(value) {
+    setForm((prev) => ({
+      ...prev,
+      context: value,
+      contextUpdatedAt: new Date().toISOString(),
+    }));
+  }
+
   function handleSubmit(e) {
     e.preventDefault();
     if (!form.title.trim()) return; 
@@ -353,7 +388,7 @@ function TaskModal({ mode, task, onSave, onDelete, onClose, onHandOff }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="task-modal-title"
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-surface-card p-6 shadow-xl"
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-surface-card p-6 shadow-xl"
       >
         <div className={`-mx-6 -mt-6 mb-5 h-1.5 rounded-t-xl ${TYPE_STYLES[form.type].bar}`} />
 
@@ -480,6 +515,52 @@ function TaskModal({ mode, task, onSave, onDelete, onClose, onHandOff }) {
               <div className="mt-2">
                 <DueChip task={form} />
               </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-ink/10 bg-surface-page/60 p-4">
+            <label
+              htmlFor="task-context"
+              className="block font-heading text-sm font-semibold uppercase tracking-wide text-brand-primary"
+            >
+              Context
+            </label>
+            <p className="mb-2 text-xs text-ink-muted">
+              Prompts, results and notes, so you (or your AI) can pick up where you left off. Markdown supported.
+            </p>
+
+            <textarea
+              id="task-context"
+              rows={10}
+              value={form.context ?? ''}
+              onChange={(e) => updateContext(e.target.value)}
+              placeholder={CONTEXT_TEMPLATE}
+              className="w-full rounded-md border border-ink/15 bg-surface-card px-3 py-2 font-mono text-[13px] leading-relaxed text-ink focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/30"
+            />
+
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <label htmlFor="task-tool" className="text-xs font-medium text-ink-muted">
+                  AI tool
+                </label>
+                <select
+                  id="task-tool"
+                  value={form.contextTool ?? ''}
+                  onChange={(e) => update('contextTool', e.target.value)}
+                  className="rounded-md border border-ink/15 bg-surface-card px-2 py-1.5 text-xs text-ink focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/30"
+                >
+                  <option value="">Choose…</option>
+                  {AI_TOOLS.map((tool) => (
+                    <option key={tool} value={tool}>{tool}</option>
+                  ))}
+                </select>
+              </div>
+
+              <p className="text-xs text-ink-muted">
+                {form.contextUpdatedAt
+                  ? `Last updated ${timeAgo(form.contextUpdatedAt)}`
+                  : 'Not edited yet'}
+              </p>
             </div>
           </div>
 
