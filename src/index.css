@@ -5,25 +5,19 @@
 @tailwind components;
 @tailwind utilities;
 
-/* from DESIGN.md */
 :root {
-  /* Brand */
   --brand-primary: 43 45 66;  
   --brand-accent: 92 107 138;   
 
-  /* Surfaces */
   --surface-page: 245 241 234;  
   --surface-card: 255 252 247;  
 
-  /* Text */
   --ink: 31 32 48;             
   --ink-muted: 107 107 123;     
 
-  /* Task type (M6) */
   --type-feature: 124 58 237;   
   --type-bug: 190 24 93;       
 
-  /* Due-date states (M8) */
   --due-safe: 21 128 61;      
   --due-warning: 180 83 9;      
   --due-overdue: 185 28 28;    
@@ -39,4 +33,80 @@ body {
   background-color: rgb(var(--surface-page));
   color: rgb(var(--ink));
   -webkit-font-smoothing: antialiased;
+}
+
+:root[data-theme='dark'] {
+  --brand-primary: 228 225 240;
+  --brand-accent: 150 164 196;
+  --surface-page: 17 18 26;
+  --surface-card: 30 31 43;
+  --ink: 232 230 240;
+  --ink-muted: 160 158 176;
+  --type-feature: 167 139 250;
+  --type-bug: 244 114 182;
+  --due-safe: 74 222 128;
+  --due-warning: 251 191 36;
+  --due-overdue: 248 113 113;
+  --due-neutral: 168 162 158;
+}
+
+:root[data-theme='blue-light'] {
+  --brand-primary: 245 200 140;
+  --brand-accent: 214 160 100;
+  --surface-page: 28 22 16;
+  --surface-card: 41 33 24;
+  --ink: 245 222 190;
+  --ink-muted: 196 170 135;
+  --type-feature: 214 186 110;
+  --type-bug: 240 128 110;
+  --due-safe: 170 200 110;
+  --due-warning: 245 170 70;
+  --due-overdue: 240 100 80;
+  --due-neutral: 170 150 130;
+}
+
+:root[data-theme='high-contrast'] {
+  --brand-primary: 255 230 0;
+  --brand-accent: 0 229 255;
+  --surface-page: 0 0 0;
+  --surface-card: 0 0 0;
+  --ink: 255 255 255;
+  --ink-muted: 230 230 230;
+  --type-feature: 200 160 255;
+  --type-bug: 255 120 200;
+  --due-safe: 0 255 120;
+  --due-warning: 255 200 0;
+  --due-overdue: 255 90 90;
+  --due-neutral: 200 200 200;
+}
+
+:root[data-theme='high-contrast'] .border-ink\/5,
+:root[data-theme='high-contrast'] .border-ink\/10,
+:root[data-theme='high-contrast'] .border-ink\/15 {
+  border-color: rgb(var(--ink));
+}
+:root[data-theme='high-contrast'] .border-l-type-feature {
+  border-left-color: rgb(var(--type-feature));
+}
+:root[data-theme='high-contrast'] .border-l-type-bug {
+  border-left-color: rgb(var(--type-bug));
+}
+
+:root[data-theme='dark'],
+:root[data-theme='blue-light'],
+:root[data-theme='high-contrast'] {
+  color-scheme: dark;
+}
+
+body {
+  transition: background-color 200ms ease, color 200ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }

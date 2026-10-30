@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Sparkles, Bug, Calendar, Clock, AlarmClock, Check, Copy,Presentation, MonitorPlay, FileText, BookOpen, ExternalLink } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Sparkles, Bug, Calendar, Clock, AlarmClock, Check, Copy,Presentation, MonitorPlay, FileText, BookOpen, ExternalLink, Palette, Sun, Moon, Sunset, Contrast } from 'lucide-react';
 
 /**
  * Glow — a project tracker for vibe-coding projects.
@@ -54,6 +54,21 @@ function isValidUrl(value) {
     return url.protocol === 'http:' || url.protocol === 'https:';
   } catch {
     return false;
+  }
+}
+
+const THEMES = [
+  { id: 'light',         label: 'Light',          description: 'Warm, default',         icon: Sun },
+  { id: 'dark',          label: 'Dark',           description: 'Darker screen for late work',  icon: Moon },
+  { id: 'blue-light',    label: 'Low blue light', description: 'Warm tones to reduce eye strain', icon: Sunset },
+  { id: 'high-contrast', label: 'High contrast',  description: 'Maximum readability',             icon: Contrast },
+];
+
+function getDefaultTheme() {
+  try {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  } catch {
+    return 'light';
   }
 }
 
@@ -468,7 +483,7 @@ function TaskModal({ mode, task, onSave, onDelete, onClose, onHandOff, onCopy })
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -768,6 +783,80 @@ function DeliverablesBar({ links, onChange }) {
   );
 }
 
+function AppearanceMenu({ theme, onChange }) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setOpen(false);
+    }
+    function handleKey(e) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={menuRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-haspopup="true"
+        className="inline-flex items-center gap-2 rounded-md border border-ink/15 bg-surface-card px-3 py-2.5 text-sm font-medium text-ink hover:bg-ink/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+      >
+        <Palette size={16} aria-hidden="true" />
+        Appearance
+      </button>
+
+      {open && (
+        <div className="absolute right-0 z-40 mt-2 w-72 rounded-xl border border-ink/10 bg-surface-card p-3 shadow-xl">
+          <fieldset>
+            <legend className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">
+              Appearance
+            </legend>
+            <div className="space-y-1">
+              {THEMES.map((t) => {
+                const Icon = t.icon;
+                const selected = theme === t.id;
+                return (
+                  <label
+                    key={t.id}
+                    className={`flex cursor-pointer items-start gap-3 rounded-lg border p-2.5 transition-colors focus-within:ring-2 focus-within:ring-brand-primary ${
+                      selected ? 'border-brand-primary bg-brand-primary/10' : 'border-transparent hover:bg-ink/5'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="theme"
+                      value={t.id}
+                      checked={selected}
+                      onChange={() => onChange(t.id)}
+                      className="sr-only"
+                    />
+                    <Icon size={18} aria-hidden="true" className="mt-0.5 shrink-0 text-brand-accent" />
+                    <span>
+                      <span className="block text-sm font-medium text-ink">{t.label}</span>
+                      <span className="block text-xs text-ink-muted">{t.description}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ---------- App ---------- */
 
 export default function App() {
@@ -780,6 +869,11 @@ export default function App() {
   function updateDeliverable(id, value) {
     setDeliverables((prev) => ({ ...prev, [id]: value }));
   }
+
+  const [theme, setTheme] = useLocalStorage('glow.theme', getDefaultTheme());
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
 
   function saveTask(task) {
     setTasks((prev) =>
@@ -837,13 +931,16 @@ export default function App() {
           <p className="text-sm text-ink-muted">Project tracker.</p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setModal({ mode: 'create', task: newTask() })}
-          className="rounded-md bg-brand-primary px-4 py-2.5 text-sm font-medium text-surface-card hover:bg-brand-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
-        >
-          + New task
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <AppearanceMenu theme={theme} onChange={setTheme} />
+          <button
+            type="button"
+            onClick={() => setModal({ mode: 'create', task: newTask() })}
+            className="rounded-md bg-brand-primary px-4 py-2.5 text-sm font-medium text-surface-card hover:bg-brand-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
+          >
+            + New task
+          </button>
+        </div>
       </header>
 
       <DeliverablesBar links={deliverables} onChange={updateDeliverable} />
