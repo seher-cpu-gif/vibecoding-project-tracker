@@ -158,25 +158,50 @@ function TypeBadge({ type }) {
   );
 }
 
-function TaskCard({ task, onOpen }) {
+function getInitials(name) {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function Avatar({ name }) {
+  return (
+    <span
+      title={name}
+      aria-hidden="true"
+      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-primary font-mono text-xs font-semibold text-surface-card"
+    >
+      {getInitials(name)}
+    </span>
+  );
+}
+
+function TaskCard({ task, onOpen, highlighted }) {
   const style = TYPE_STYLES[task.type] ?? TYPE_STYLES.feature;
 
   return (
     <button
       type="button"
       onClick={() => onOpen(task)}
-      className={`w-full rounded-lg border border-l-4 border-ink/10 bg-surface-card p-3 text-left transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary ${style.stripe}`}
+      className={`w-full rounded-lg border border-l-4 border-ink/10 bg-surface-card p-3 text-left transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary ${style.stripe} ${highlighted ? 'ring-2 ring-brand-accent ring-offset-2' : ''}`}
     >
       <span className="flex items-start justify-between gap-2">
         <span className="text-sm font-medium text-ink">{task.title}</span>
         <TypeBadge type={task.type} />
       </span>
-      <span className="mt-2 block text-xs text-ink-muted">{task.assignee}</span>
+            <span className="mt-3 flex items-center gap-2">
+        <Avatar name={task.assignee} />
+        <span className="text-xs text-ink-muted">{task.assignee}</span>
+      </span>
     </button>
   );
 }
 
-function Column({ stage, tasks, onOpen }) {
+function Column({ stage, tasks, onOpen, highlightedId }) {
   const headingId = `column-${stage.id}`;
 
   return (
@@ -200,14 +225,21 @@ function Column({ stage, tasks, onOpen }) {
             Nothing here yet.
           </p>
         ) : (
-          tasks.map((task) => <TaskCard key={task.id} task={task} onOpen={onOpen} />)
+                    tasks.map((task) => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              onOpen={onOpen}
+              highlighted={task.id === highlightedId}
+            />
+          ))
         )}
       </div>
     </section>
   );
 }
 
-function TaskModal({ mode, task, onSave, onDelete, onClose }) {
+function TaskModal({ mode, task, onSave, onDelete, onClose, onHandOff }) {
   const [form, setForm] = useState(task);
 
   useEffect(() => {
@@ -232,6 +264,10 @@ function TaskModal({ mode, task, onSave, onDelete, onClose }) {
     if (window.confirm("Delete this task? This can't be undone.")) {
       onDelete(form.id);
     }
+  }
+  function handleHandOff(name) {
+    if (!name || !form.title.trim()) return;
+    onHandOff({ ...form, title: form.title.trim(), assignee: name });
   }
 
   const labelClass = 'mb-1 block text-xs font-medium text-ink-muted';
@@ -329,19 +365,40 @@ function TaskModal({ mode, task, onSave, onDelete, onClose }) {
               </select>
             </div>
 
-            <div>
-              <label htmlFor="task-assignee" className={labelClass}>Assignee</label>
-              <select
-                id="task-assignee"
-                value={form.assignee}
-                onChange={(e) => update('assignee', e.target.value)}
-                className={inputClass}
-              >
-                {TEAM.map((name) => (
-                  <option key={name} value={name}>{name}</option>
-                ))}
-              </select>
-            </div>
+                        {mode === 'create' ? (
+              <div>
+                <label htmlFor="task-assignee" className={labelClass}>Assignee</label>
+                <select
+                  id="task-assignee"
+                  value={form.assignee}
+                  onChange={(e) => update('assignee', e.target.value)}
+                  className={inputClass}
+                >
+                  {TEAM.map((name) => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div>
+                <label htmlFor="task-handoff" className={labelClass}>Owner</label>
+                <div className="mb-2 flex items-center gap-2">
+                  <Avatar name={form.assignee} />
+                  <span className="text-sm font-medium text-ink">{form.assignee}</span>
+                </div>
+                <select
+                  id="task-handoff"
+                  value=""
+                  onChange={(e) => handleHandOff(e.target.value)}
+                  className={inputClass}
+                >
+                  <option value="">Hand off to…</option>
+                  {TEAM.filter((name) => name !== form.assignee).map((name) => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div>
               <label htmlFor="task-due" className={labelClass}>Due date</label>
@@ -414,6 +471,23 @@ export default function App() {
     setTasks((prev) => prev.filter((t) => t.id !== id));
     setModal(null);
   }
+  const [toast, setToast] = useState(null);
+  const [highlightedId, setHighlightedId] = useState(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => {
+      setToast(null);
+      setHighlightedId(null);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  function handOffTask(task) {
+    saveTask(task);
+    setHighlightedId(task.id);
+    setToast(`Handed off to ${task.assignee}. It's theirs now.`);
+  }
 
   return (
     <div className="mx-auto min-h-screen max-w-7xl p-6">
@@ -441,6 +515,7 @@ export default function App() {
             stage={stage}
             tasks={tasks.filter((task) => task.status === stage.id)}
             onOpen={(task) => setModal({ mode: 'edit', task })}
+            highlightedId={highlightedId}
           />
         ))}
       </main>
@@ -453,7 +528,17 @@ export default function App() {
           onSave={saveTask}
           onDelete={deleteTask}
           onClose={() => setModal(null)}
+          onHandOff={handOffTask}
         />
+      )}
+      {toast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-brand-primary px-4 py-3 text-sm font-medium text-surface-card shadow-lg"
+        >
+          {toast}
+        </div>
       )}
     </div>
   );
